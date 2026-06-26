@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { createAccount, listAccounts } from "@/lib/db/accounts";
 import { handleError, isIcloudDomain, json, parseBody } from "@/lib/http";
 import { requireSession } from "@/lib/session";
+import { CookieParseError, parseCookieInput } from "@/lib/icloud/cookie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,11 +33,20 @@ export async function POST(request: NextRequest) {
     }>(request);
 
     const name = body.name?.trim();
-    const cookie = body.cookie?.trim();
+    const rawCookie = body.cookie?.trim();
     if (!name) return json({ error: "账号名称不能为空" }, 400);
-    if (!cookie) return json({ error: "Cookie 不能为空" }, 400);
+    if (!rawCookie) return json({ error: "Cookie 不能为空" }, 400);
     if (!isIcloudDomain(body.domain)) {
       return json({ error: "domain 必须是 icloud.com 或 icloud.com.cn" }, 400);
+    }
+
+    // 归一化多格式 Cookie（Netscape / JSON / Header String）
+    let cookie: string;
+    try {
+      cookie = parseCookieInput(rawCookie).cookie;
+    } catch (e) {
+      if (e instanceof CookieParseError) return json({ error: e.message }, 400);
+      throw e;
     }
 
     // IMAP 配置可选，但要么都填要么都不填

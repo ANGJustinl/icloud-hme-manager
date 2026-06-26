@@ -267,10 +267,13 @@ function AddAccountForm({
         <textarea
           value={form.cookie}
           onChange={(e) => set("cookie", e.target.value)}
-          placeholder="浏览器登录 icloud.com 后，F12 → Network → 任一请求 → Request Headers → 复制整行 cookie 值"
+          placeholder="支持三种格式，自动识别：&#10;① Header String：F12 → Network → 任一请求 → 复制整行 cookie&#10;② JSON：EditThisCookie / Cookie-Editor 导出的数组&#10;③ Netscape：cookies.txt 文件内容"
           rows={4}
           className="w-full resize-none rounded-lg border border-hme-border bg-white px-3 py-2 font-mono text-xs outline-none focus:border-hme-primary"
         />
+        <p className="mt-1 text-[11px] text-hme-muted">
+          支持 Header String / JSON 导出 / Netscape cookies.txt，粘贴后自动识别并归一化。
+        </p>
       </div>
 
       <ImapConfigSection
@@ -499,7 +502,7 @@ function ManageModal({
           <textarea
             value={cookie}
             onChange={(e) => setCookie(e.target.value)}
-            placeholder="从 icloud.com 重新复制整行 cookie"
+            placeholder="支持 Header String / JSON 导出 / Netscape cookies.txt，自动识别"
             rows={3}
             className="mb-2 w-full resize-none rounded-lg border border-hme-border bg-white px-3 py-2 font-mono text-xs outline-none focus:border-hme-primary"
           />

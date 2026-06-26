@@ -10,6 +10,7 @@ import {
 import { handleError, json, parseBody } from "@/lib/http";
 import { requireSession } from "@/lib/session";
 import { deleteAllUsageForAccount } from "@/lib/db/aliasUsage";
+import { CookieParseError, parseCookieInput } from "@/lib/icloud/cookie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,8 +45,15 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       updateAccountName(id, name);
     }
     if (typeof body.cookie === "string") {
-      const cookie = body.cookie.trim();
-      if (!cookie) return json({ error: "Cookie 不能为空" }, 400);
+      const rawCookie = body.cookie.trim();
+      if (!rawCookie) return json({ error: "Cookie 不能为空" }, 400);
+      let cookie: string;
+      try {
+        cookie = parseCookieInput(rawCookie).cookie;
+      } catch (e) {
+        if (e instanceof CookieParseError) return json({ error: e.message }, 400);
+        throw e;
+      }
       updateAccountCookie(id, cookie);
     }
     // IMAP 配置：imapUsername 字段存在即触发更新（null = 清除）
