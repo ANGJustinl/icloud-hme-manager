@@ -43,6 +43,29 @@ export function OtpExtractor({ accountId, emails, active }: OtpExtractorProps) {
   const [stats, setStats] = useState<OtpExtractStats | null>(null);
   const lastCodeRef = useRef<string | null>(null);
 
+  /** 浏览器桌面通知：开启自动监听时请求权限，命中新验证码时弹通知（页面在后台也可见）。 */
+  function ensureNotifyPermission() {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+  }
+
+  function notifyDesktop(code: string, subject: string) {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    // 页面在前台且可见时不打扰（用户已能看到大字验证码）
+    if (document.visibilityState === "visible") return;
+    try {
+      new Notification(`验证码 ${code}`, {
+        body: `${subject}（已复制到剪贴板）`,
+        tag: "hme-otp",
+      });
+    } catch {
+      // 某些环境构造失败，忽略
+    }
+  }
+
   // 默认选中第一个别名
   useEffect(() => {
     if (!selectedAlias && emails.length > 0) {
@@ -71,6 +94,7 @@ export function OtpExtractor({ accountId, emails, active }: OtpExtractorProps) {
         if (r.otp.code !== lastCodeRef.current) {
           lastCodeRef.current = r.otp.code;
           await copy(r.otp.code, `已提取并复制验证码: ${r.otp.code}`);
+          notifyDesktop(r.otp.code, r.otp.subject);
           // 命中后停止监听：已拿到验证码，无需继续打 iCloud
           setAutoWatch(false);
         }
@@ -146,7 +170,13 @@ export function OtpExtractor({ accountId, emails, active }: OtpExtractorProps) {
         <label className="flex cursor-pointer items-center gap-2 text-sm text-hme-text">
           <button
             type="button"
-            onClick={() => setAutoWatch((v) => !v)}
+            onClick={() => {
+              setAutoWatch((v) => {
+                const next = !v;
+                if (next) ensureNotifyPermission();
+                return next;
+              });
+            }}
             className={`relative h-5 w-9 rounded-full transition-colors ${
               autoWatch ? "bg-hme-primary" : "bg-hme-border"
             }`}
