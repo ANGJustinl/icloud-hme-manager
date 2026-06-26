@@ -17,8 +17,12 @@ import { timingSafeEqual } from "crypto";
 
 const SESSION_COOKIE_NAME = "hme_session";
 
+export type SessionRole = "admin";
+
 export interface AppSession {
   authed?: boolean;
+  /** 角色。目前仅 admin（访客走无 session 的 JWT 只读路径，不在此体系内）。 */
+  role?: SessionRole;
 }
 
 let cachedSecret: string | null = null;
@@ -79,6 +83,22 @@ export function isAuthEnabled(): boolean {
   return Boolean(process.env.ACCESS_PASSWORD?.trim());
 }
 
+/** 配置的管理员用户名（可选）。设置后登录需用户名 + 密码双校验。 */
+export function getAdminUsername(): string | null {
+  return process.env.ADMIN_USERNAME?.trim() || null;
+}
+
+/** 是否要求用户名（设置了 ADMIN_USERNAME 时） */
+export function isUsernameRequired(): boolean {
+  return Boolean(getAdminUsername());
+}
+
+/** 未设密码时是否显式允许开放访问（信任内网逃生口） */
+export function isOpenAccessAllowed(): boolean {
+  const v = process.env.ALLOW_NO_AUTH?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 /** 常量时间比较，防计时攻击 */
 function safeEqual(a: string, b: string): boolean {
   const ba = Buffer.from(a);
@@ -87,19 +107,34 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
-/** 校验访问密码，成功则写入会话 */
-export async function tryLogin(password: string): Promise<boolean> {
+/**
+ * 校验管理员凭证，成功则写入会话（role=admin）。
+ * - 未设 ACCESS_PASSWORD：视为本地自用，直接通过并标记 admin。
+ * - 设了 ADMIN_USERNAME：用户名 + 密码都要匹配。
+ */
+export async function tryLogin(
+  password: string,
+  username?: string,
+): Promise<boolean> {
   const expected = process.env.ACCESS_PASSWORD?.trim();
   if (!expected) {
     // 未启用守卫：视为已登录
     const s = await getSession();
     s.authed = true;
+    s.role = "admin";
     await s.save();
     return true;
   }
-  if (!safeEqual(password, expected)) return false;
+
+  // 用户名校验（若配置了）。先比对用户名再比对密码，两者都用常量时间比较。
+  const expectedUser = getAdminUsername();
+  const userOk = expectedUser ? safeEqual(username?.trim() ?? "", expectedUser) : true;
+  const passOk = safeEqual(password, expected);
+  if (!userOk || !passOk) return false;
+
   const s = await getSession();
   s.authed = true;
+  s.role = "admin";
   await s.save();
   return true;
 }
@@ -110,14 +145,27 @@ export async function logout(): Promise<void> {
 }
 
 /**
- * 路由守卫。返回 true 表示放行，否则返回 NextResponse（401）。
+ * 路由守卫。返回 null 表示放行，否则返回 401 响应。
+ *
+ * 安全策略（未设 ACCESS_PASSWORD 时）：
+ *  - 开发环境（NODE_ENV !== production）：放行，方便本地自用。
+ *  - 生产环境：默认禁用管理接口（避免公网裸奔），除非显式设 ALLOW_NO_AUTH=true。
  *
  * 用法：
  *   const guard = await requireSession(request);
  *   if (guard) return guard;
  */
 export async function requireSession(request: Request) {
-  if (!isAuthEnabled()) return null; // 未启用守卫，直接放行
+  if (!isAuthEnabled()) {
+    // 未设密码：开发放行；生产需显式 ALLOW_NO_AUTH 才放行
+    if (process.env.NODE_ENV !== "production" || isOpenAccessAllowed()) {
+      return null;
+    }
+    warnNoAuthOnce();
+    return unauthorized(
+      "服务端未配置 ACCESS_PASSWORD，管理接口已禁用。请设置访问密码，或显式设置 ALLOW_NO_AUTH=true 开放访问。",
+    );
+  }
 
   // 简单优化：未带 cookie 直接 401，避免无谓的 iron-session 解析
   const cookieHeader = request.headers.get("cookie") ?? "";
@@ -126,13 +174,27 @@ export async function requireSession(request: Request) {
   }
 
   const s = await getSession();
-  if (!s.authed) return unauthorized();
+  if (!s.authed || s.role !== "admin") return unauthorized();
   return null;
 }
 
-function unauthorized(): Response {
-  return new Response(
-    JSON.stringify({ error: "未登录或会话已过期" }),
-    { status: 401, headers: { "content-type": "application/json" } },
-  );
+let warnedNoAuth = false;
+function warnNoAuthOnce() {
+  if (warnedNoAuth) return;
+  warnedNoAuth = true;
+  // 延迟 import 避免 logger → db 在边缘运行时的硬依赖
+  void import("@/lib/logger")
+    .then(({ createLogger }) =>
+      createLogger("session").warn(
+        "生产环境未配置 ACCESS_PASSWORD，管理接口已禁用（设 ALLOW_NO_AUTH=true 可开放）",
+      ),
+    )
+    .catch(() => {});
+}
+
+function unauthorized(message = "未登录或会话已过期"): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status: 401,
+    headers: { "content-type": "application/json" },
+  });
 }

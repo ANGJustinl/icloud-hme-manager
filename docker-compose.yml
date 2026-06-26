@@ -11,6 +11,12 @@ services:
       # ---- WebUI 访问密码（强烈建议设置）----
       ACCESS_PASSWORD: ${ACCESS_PASSWORD:-}
 
+      # ---- 管理员用户名（可选，设置后需用户名+密码登录）----
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+
+      # ---- 未设密码时是否开放管理接口（生产慎用）----
+      ALLOW_NO_AUTH: ${ALLOW_NO_AUTH:-}
+
       # ---- Cookie 加密密钥（64 位 hex，务必显式设置并固定）----
       # 生成：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
