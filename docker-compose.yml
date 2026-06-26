@@ -1,0 +1,23 @@
+services:
+  icloud-hme:
+    build: .
+    # 若已构建镜像，可改用 image: icloud-hme-manager:latest
+    image: icloud-hme-manager:latest
+    container_name: icloud-hme-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # ---- WebUI 访问密码（强烈建议设置）----
+      ACCESS_PASSWORD: ${ACCESS_PASSWORD:-}
+
+      # ---- Cookie 加密密钥（64 位 hex，务必显式设置并固定）----
+      # 生成：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+
+      # ---- 会话签名密钥（务必显式设置并固定）----
+      # 生成：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      SESSION_SECRET: ${SESSION_SECRET}
+    volumes:
+      # SQLite 数据库持久化（账号 Cookie 等加密存储于此）
+      - ./data:/app/data

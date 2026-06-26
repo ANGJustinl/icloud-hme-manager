@@ -1,0 +1,34 @@
+{
+  "name": "icloud-hme-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iCloud 隐藏我的邮件 (HME) 高级管理器 - Next.js WebUI",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "imapflow": "^1.4.2",
+    "iron-session": "^8.0.4",
+    "lucide-react": "^0.469.0",
+    "mailparser": "^3.9.11",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/imapflow": "^1.0.23",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3"
+  }
+}

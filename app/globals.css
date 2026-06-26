@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* ==========================================
+   配色变量：从原油猴脚本迁移
+   - primary 用 iCloud 绿（脚本里的 ChatGPT/OpenAI 绿，保留以维持视觉一致）
+   ========================================== */
+:root {
+  --hme-bg: #f7f7f8;
+  --hme-card: #ffffff;
+  --hme-primary: #10a37f;
+  --hme-primary-hover: #0e8f6e;
+  --hme-border: #e5e5ea;
+  --hme-text: #353740;
+  --hme-text-muted: #8e8ea0;
+  --hme-danger: #ef4146;
+  --hme-danger-bg: rgba(239, 65, 70, 0.08);
+  --hme-font: -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+/* 让 Tailwind 主题色映射到 CSS 变量，便于统一改色 */
+@theme inline {
+  --color-hme-bg: var(--hme-bg);
+  --color-hme-card: var(--hme-card);
+  --color-hme-primary: var(--hme-primary);
+  --color-hme-primary-hover: var(--hme-primary-hover);
+  --color-hme-border: var(--hme-border);
+  --color-hme-text: var(--hme-text);
+  --color-hme-muted: var(--hme-text-muted);
+  --color-hme-danger: var(--hme-danger);
+  --color-hme-danger-bg: var(--hme-danger-bg);
+  --font-sans: var(--hme-font);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--hme-bg);
+  color: var(--hme-text);
+  font-family: var(--hme-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条（macOS 风） */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+@keyframes hme-spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.hme-spin {
+  animation: hme-spin 1s linear infinite;
+}
+
+@keyframes hme-toast-in {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.hme-toast-in {
+  animation: hme-toast-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.relay-page-shell {
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 24%, rgba(216, 120, 49, 0.12), transparent 0 34%),
+    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.55), transparent 0 22%),
+    linear-gradient(180deg, #f4ead8 0%, #f3e6d1 42%, #efe0c8 100%);
+  overflow: hidden;
+}
+
+.relay-page-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(101, 69, 34, 0.06) 1px, transparent 1px);
+  background-size: 100% 40px;
+  pointer-events: none;
+}
+
+.relay-page-shell::after {
+  content: "";
+  position: absolute;
+  inset: 10% -14% -18% 34%;
+  border: 1px solid rgba(149, 104, 51, 0.1);
+  border-radius: 50%;
+  pointer-events: none;
+}
