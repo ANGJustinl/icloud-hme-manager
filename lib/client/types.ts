@@ -9,6 +9,12 @@ export interface HmeEmail {
   createTimestamp?: number;
   createdAt?: number;
   numberOfForwardedEmails?: number;
+  /** 本地用法追踪：该别名注册的网站 */
+  site?: string | null;
+  /** 本地用法追踪：分类标签 */
+  usageTags?: string[];
+  /** 本地用法追踪：最近标记使用时间 */
+  usedAt?: number | null;
 }
 
 export interface AccountPublic {

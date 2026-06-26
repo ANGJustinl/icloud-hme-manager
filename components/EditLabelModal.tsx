@@ -15,6 +15,10 @@ interface EditLabelModalProps {
   initialLabel: string;
   initialNote: string;
   email: string;
+  /** 本地用法追踪：网站 */
+  initialSite?: string | null;
+  /** 本地用法追踪：标签 */
+  initialTags?: string[];
 }
 
 export function EditLabelModal({
@@ -26,9 +30,13 @@ export function EditLabelModal({
   initialLabel,
   initialNote,
   email,
+  initialSite,
+  initialTags,
 }: EditLabelModalProps) {
   const [label, setLabel] = useState(initialLabel);
   const [note, setNote] = useState(initialNote);
+  const [site, setSite] = useState(initialSite ?? "");
+  const [tagsInput, setTagsInput] = useState((initialTags ?? []).join(", "));
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -37,12 +45,15 @@ export function EditLabelModal({
     if (open) {
       setLabel(initialLabel);
       setNote(initialNote);
+      setSite(initialSite ?? "");
+      setTagsInput((initialTags ?? []).join(", "));
     }
-  }, [open, initialLabel, initialNote]);
+  }, [open, initialLabel, initialNote, initialSite, initialTags]);
 
   async function handleSave() {
     setSaving(true);
     try {
+      // 1) 标签/备注 → iCloud（同步）
       await apiFetch("/api/hme/update", {
         method: "POST",
         body: JSON.stringify({
@@ -52,7 +63,21 @@ export function EditLabelModal({
           note: note.trim(),
         }),
       });
-      toast("已更新标签和备注");
+      // 2) 网站/用法标签 → 本地（不同步 iCloud）
+      const tags = tagsInput
+        .split(/[,，]/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      await apiFetch("/api/hme/usage", {
+        method: "POST",
+        body: JSON.stringify({
+          accountId,
+          anonymousId,
+          site: site.trim() || null,
+          tags,
+        }),
+      });
+      toast("已更新");
       onSaved();
       onClose();
     } catch (e) {
@@ -112,6 +137,33 @@ export function EditLabelModal({
             rows={3}
             maxLength={500}
             className="w-full resize-none rounded-lg border border-hme-border bg-white px-3 py-2 text-sm outline-none focus:border-hme-primary"
+          />
+        </div>
+
+        <div className="border-t border-hme-border pt-3">
+          <div className="mb-2 text-[11px] text-hme-muted">
+            以下为本地用法追踪，仅存于本应用，不同步到 iCloud。
+          </div>
+          <label className="mb-1.5 block text-xs font-medium text-hme-muted">
+            使用的网站
+          </label>
+          <input
+            value={site}
+            onChange={(e) => setSite(e.target.value)}
+            placeholder="例如：github.com、淘宝"
+            maxLength={128}
+            className="w-full rounded-lg border border-hme-border bg-white px-3 py-2 text-sm outline-none focus:border-hme-primary"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-hme-muted">
+            分类标签（逗号分隔）
+          </label>
+          <input
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            placeholder="例如：购物, 一次性, 重要"
+            className="w-full rounded-lg border border-hme-border bg-white px-3 py-2 text-sm outline-none focus:border-hme-primary"
           />
         </div>
       </div>

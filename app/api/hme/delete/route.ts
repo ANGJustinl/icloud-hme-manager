@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 
 import { buildClientForAccount, handleError, json, parseBody } from "@/lib/http";
 import { requireSession } from "@/lib/session";
+import { deleteUsage } from "@/lib/db/aliasUsage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export async function POST(request: NextRequest) {
 
     const client = await buildClientForAccount(accountId);
     await client.remove(anonymousId);
+    // 别名已从 iCloud 删除，清理本地用法记录避免孤儿数据
+    deleteUsage(accountId, anonymousId);
     return json({ ok: true });
   } catch (e) {
     return handleError(e);

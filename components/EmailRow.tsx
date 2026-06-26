@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Globe, Pencil, Trash2 } from "lucide-react";
 import { Toggle } from "@/components/ui/Toggle";
 import { apiFetch, type HmeEmail, type RelayShareResponse } from "@/lib/client/types";
 import { useToast, useCopyToClipboard } from "@/components/ui/Toast";
@@ -12,6 +12,10 @@ interface EmailRowProps {
   domain: "icloud.com" | "icloud.com.cn";
   onToggleChanged: () => void;
   onEdit: (email: HmeEmail) => void;
+  /** 多选：是否选中 */
+  selected: boolean;
+  /** 多选：切换选中 */
+  onSelectChange: (anonymousId: string, checked: boolean) => void;
 }
 
 export function EmailRow({
@@ -19,6 +23,8 @@ export function EmailRow({
   accountId,
   onToggleChanged,
   onEdit,
+  selected,
+  onSelectChange,
 }: EmailRowProps) {
   const [busy, setBusy] = useState(false);
   const [viewing, setViewing] = useState(false);
@@ -87,6 +93,16 @@ export function EmailRow({
 
   return (
     <tr className="hover:bg-black/[0.01]">
+      {/* 列 0：多选 */}
+      <td className="border-b border-hme-border px-4 py-3 align-middle">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelectChange(email.anonymousId, e.target.checked)}
+          className="h-4 w-4 cursor-pointer accent-hme-primary"
+          aria-label={`选择 ${email.hme}`}
+        />
+      </td>
       {/* 列 1：标签 + 邮箱 + 时间 + 备注 */}
       <td className="border-b border-hme-border px-4 py-3 align-middle">
         <div className="flex items-center gap-1.5 text-sm font-semibold">
@@ -94,6 +110,12 @@ export function EmailRow({
           {!email.isActive && (
             <span className="rounded bg-hme-danger-bg px-1.5 py-0.5 text-[10px] font-medium text-hme-danger">
               已停用
+            </span>
+          )}
+          {email.site && (
+            <span className="inline-flex items-center gap-0.5 rounded bg-hme-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-hme-primary">
+              <Globe size={9} />
+              {escapeHtml(email.site)}
             </span>
           )}
         </div>
@@ -106,6 +128,18 @@ export function EmailRow({
             <ExternalLink size={14} />
           </IconButton>
         </div>
+        {email.usageTags && email.usageTags.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {email.usageTags.map((t) => (
+              <span
+                key={t}
+                className="rounded bg-hme-bg px-1.5 py-0.5 text-[10px] text-hme-muted"
+              >
+                {escapeHtml(t)}
+              </span>
+            ))}
+          </div>
+        )}
         {email.note && (
           <div className="mt-0.5 max-w-md truncate text-xs text-hme-muted/80">
             备注：{escapeHtml(email.note)}

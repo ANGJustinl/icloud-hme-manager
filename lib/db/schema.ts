@@ -91,6 +91,44 @@ export interface RelaySourcePublic {
   updatedAt: number;
 }
 
+/**
+ * 别名用法追踪（DB 层，本地数据，不同步到 iCloud）。
+ *
+ * 别名列表是实时从 iCloud 拉取的、不落库；用 (account_id, anonymous_id)
+ * 作为稳定主键把"这个别名用在了哪个网站"的本地元数据关联上去。
+ */
+export interface AliasUsageRow {
+  account_id: number;
+  anonymous_id: string;
+  /** 该别名注册/使用的网站（如 github.com），可空 */
+  site: string | null;
+  /** 逗号分隔的标签（本地分类用），可空 */
+  tags: string | null;
+  /** 最近一次标记使用的时间（毫秒） */
+  used_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/** 下发到前端的别名用法信息 */
+export interface AliasUsagePublic {
+  anonymousId: string;
+  site: string | null;
+  tags: string[];
+  usedAt: number | null;
+}
+
+export function aliasUsageToPublic(row: AliasUsageRow): AliasUsagePublic {
+  return {
+    anonymousId: row.anonymous_id,
+    site: row.site,
+    tags: row.tags
+      ? row.tags.split(",").map((t) => t.trim()).filter(Boolean)
+      : [],
+    usedAt: row.used_at,
+  };
+}
+
 export function toPublic(row: AccountRow): AccountPublic {
   return {
     id: row.id,
@@ -158,4 +196,16 @@ CREATE TABLE IF NOT EXISTS relay_sources (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_relay_sources_created_at ON relay_sources(created_at);
+
+CREATE TABLE IF NOT EXISTS alias_usage (
+  account_id INTEGER NOT NULL,
+  anonymous_id TEXT NOT NULL,
+  site TEXT,
+  tags TEXT,
+  used_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (account_id, anonymous_id)
+);
+CREATE INDEX IF NOT EXISTS idx_alias_usage_account ON alias_usage(account_id);
 `;

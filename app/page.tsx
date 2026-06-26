@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -219,6 +220,8 @@ function AliasesView({
   const [generateOpen, setGenerateOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<HmeEmail | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   async function handleGenerate(input: { count: number; label: string; note: string }) {
     setGenerating(true);
@@ -271,12 +274,95 @@ function AliasesView({
   }
 
   const filtered = query.trim()
-    ? emails.filter(
-        (e) =>
-          e.hme.toLowerCase().includes(query.toLowerCase()) ||
-          e.label.toLowerCase().includes(query.toLowerCase()),
-      )
+    ? emails.filter((e) => {
+        const q = query.toLowerCase();
+        return (
+          e.hme.toLowerCase().includes(q) ||
+          e.label.toLowerCase().includes(q) ||
+          (e.site?.toLowerCase().includes(q) ?? false) ||
+          (e.usageTags?.some((t) => t.toLowerCase().includes(q)) ?? false)
+        );
+      })
     : emails;
+
+  // 选中项只保留在当前过滤结果内（搜索变化时自动收敛）
+  const filteredIds = new Set(filtered.map((e) => e.anonymousId));
+  const selectedInView = [...selected].filter((id) => filteredIds.has(id));
+  const allSelected = filtered.length > 0 && selectedInView.length === filtered.length;
+
+  function toggleSelect(anonymousId: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(anonymousId);
+      else next.delete(anonymousId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      if (allSelected) {
+        const next = new Set(prev);
+        filtered.forEach((e) => next.delete(e.anonymousId));
+        return next;
+      }
+      const next = new Set(prev);
+      filtered.forEach((e) => next.add(e.anonymousId));
+      return next;
+    });
+  }
+
+  /** 批量调用单条端点（iCloud API 本身是单条的），限制并发避免触发限流 */
+  async function runBulk(
+    action: "deactivate" | "reactivate" | "delete",
+    ids: string[],
+  ) {
+    if (ids.length === 0) return;
+    const verb =
+      action === "delete" ? "删除" : action === "deactivate" ? "停用" : "恢复";
+    if (
+      action === "delete" &&
+      !confirm(
+        `确定永久删除选中的 ${ids.length} 个别名？\n\n该操作不可恢复，且会从所有注册过它们的网站失效。`,
+      )
+    )
+      return;
+
+    setBulkBusy(true);
+    let ok = 0;
+    let fail = 0;
+    const CONCURRENCY = 3;
+    const queue = [...ids];
+    async function worker() {
+      while (queue.length) {
+        const anonymousId = queue.shift()!;
+        try {
+          await apiFetch(`/api/hme/${action}`, {
+            method: "POST",
+            body: JSON.stringify({ accountId, anonymousId }),
+          });
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+    }
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
+      );
+      toast(
+        fail === 0
+          ? `已${verb} ${ok} 个别名`
+          : `${verb}完成：成功 ${ok} 个，失败 ${fail} 个`,
+        fail === 0 ? "success" : "info",
+      );
+      setSelected(new Set());
+      await refreshEmails();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   return (
     <>
@@ -328,12 +414,65 @@ function AliasesView({
         </Button>
       </div>
 
+      {/* 批量操作条（有选中项时出现） */}
+      {selectedInView.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-hme-primary/30 bg-hme-primary/5 px-3 py-2 text-sm">
+          <span className="font-medium text-hme-primary">
+            已选 {selectedInView.length} 个
+          </span>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => runBulk("reactivate", selectedInView)}
+            loading={bulkBusy}
+          >
+            批量恢复
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => runBulk("deactivate", selectedInView)}
+            loading={bulkBusy}
+          >
+            批量停用
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            icon={<Trash2 size={14} />}
+            onClick={() => runBulk("delete", selectedInView)}
+            loading={bulkBusy}
+          >
+            批量删除
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelected(new Set())}
+            disabled={bulkBusy}
+          >
+            取消选择
+          </Button>
+        </div>
+      )}
+
       {/* 表格 */}
       <div className="overflow-hidden rounded-xl border border-hme-border bg-hme-card">
         <div className="max-h-[calc(100vh-260px)] overflow-auto">
           <table className="w-full text-left">
             <thead className="sticky top-0 z-10">
               <tr className="bg-[#f9f9fa] text-xs font-medium text-hme-muted">
+                <th className="w-12 border-b border-hme-border px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    disabled={filtered.length === 0}
+                    className="h-4 w-4 cursor-pointer accent-hme-primary"
+                    aria-label="全选"
+                  />
+                </th>
                 <th className="border-b border-hme-border px-4 py-3">标签 / 邮箱地址</th>
                 <th className="w-40 border-b border-hme-border px-4 py-3">转发状态 / 操作</th>
               </tr>
@@ -341,7 +480,7 @@ function AliasesView({
             <tbody>
               {loading && emails.length === 0 ? (
                 <tr>
-                  <td colSpan={2}>
+                  <td colSpan={3}>
                     <EmptyState
                       icon={<RefreshCw size={28} className="hme-spin" />}
                       title="正在同步 iCloud 数据..."
@@ -350,7 +489,7 @@ function AliasesView({
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={2}>
+                  <td colSpan={3}>
                     <EmptyState
                       icon={<Inbox size={32} />}
                       title={query ? "没有匹配的别名" : "还没有别名"}
@@ -381,6 +520,8 @@ function AliasesView({
                     domain={domain}
                     onToggleChanged={refreshEmails}
                     onEdit={setEditing}
+                    selected={selected.has(e.anonymousId)}
+                    onSelectChange={toggleSelect}
                   />
                 ))
               )}
@@ -415,6 +556,8 @@ function AliasesView({
           email={editing.hme}
           initialLabel={editing.label}
           initialNote={editing.note ?? ""}
+          initialSite={editing.site ?? ""}
+          initialTags={editing.usageTags ?? []}
         />
       )}
 

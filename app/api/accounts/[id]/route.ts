@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/accounts";
 import { handleError, json, parseBody } from "@/lib/http";
 import { requireSession } from "@/lib/session";
+import { deleteAllUsageForAccount } from "@/lib/db/aliasUsage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,6 +78,8 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
     if (id == null) return json({ error: "非法的账号 ID" }, 400);
     const ok = deleteAccount(id);
     if (!ok) return json({ error: "账号不存在" }, 404);
+    // 级联清理本地别名用法记录
+    deleteAllUsageForAccount(id);
     return json({ ok: true });
   } catch (e) {
     return handleError(e);
