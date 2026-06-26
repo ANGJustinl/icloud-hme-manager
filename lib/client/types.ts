@@ -18,6 +18,9 @@ export interface AccountPublic {
   hasCookie: boolean;
   hasImapPassword: boolean;
   imapUsername: string | null;
+  cookieStatus: "ok" | "invalid" | "unknown";
+  lastValidatedAt: number | null;
+  lastError: string | null;
   cachedApiBase: string | null;
   apiBaseCachedAt: number | null;
   createdAt: number;

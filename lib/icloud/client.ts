@@ -41,6 +41,46 @@ function baseDomain(domain: IcloudDomain): IcloudDomain {
   return domain;
 }
 
+/** 鉴权失败的 HTTP 状态（Cookie 失效）。 */
+function isAuthFailure(status?: number): boolean {
+  return status === 401 || status === 403 || status === 421;
+}
+
+/** 可重试的瞬时错误：网络失败（无 status）/ 429 限流 / 5xx 服务端错误。 */
+function isRetriable(e: unknown): boolean {
+  if (!(e instanceof IcloudError)) return false;
+  if (e.status === undefined) return true; // 网络层失败
+  if (e.status === 429) return true;
+  if (e.status >= 500 && e.status < 600) return true;
+  return false;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 对瞬时错误做指数退避重试（网络抖动 / 429 / 5xx）。
+ * 鉴权失效（401/403/421）不在此重试——交由 callApi 的"清缓存重发现"逻辑处理。
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  opts: { attempts?: number; baseDelayMs?: number } = {},
+): Promise<T> {
+  const attempts = opts.attempts ?? 3;
+  const baseDelay = opts.baseDelayMs ?? 400;
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (i === attempts - 1 || !isRetriable(e)) throw e;
+      // 指数退避 + 抖动：400ms, 800ms, ...
+      await sleep(baseDelay * 2 ** i + Math.random() * 200);
+    }
+  }
+  throw lastErr;
+}
+
 /** 底层请求：等价于脚本的 makeRequest，返回已解析的 JSON（或纯文本）。 */
 async function makeRequest<T = unknown>(
   url: string,
@@ -168,6 +208,10 @@ export async function createHmeClient(deps: {
   setCachedApiBase: (url: string) => void;
   /** 清空 api base 缓存（凭证失效时调用） */
   clearCachedApiBase: () => void;
+  /** 任意调用成功后回调（用于把 Cookie 状态标记为 ok） */
+  onAuthSuccess?: () => void;
+  /** 凭证确认失效后回调（用于把 Cookie 状态标记为 invalid） */
+  onAuthInvalid?: (message: string) => void;
 }) {
   async function resolveBase(): Promise<string> {
     const cached = deps.getCachedApiBase();
@@ -184,29 +228,48 @@ export async function createHmeClient(deps: {
   ): Promise<T> {
     let base: string;
     try {
-      base = await resolveBase();
+      base = await withRetry(() => resolveBase());
     } catch (e) {
-      if (e instanceof IcloudError) throw e;
+      if (e instanceof IcloudError) {
+        if (isAuthFailure(e.status)) deps.onAuthInvalid?.(e.message);
+        throw e;
+      }
       throw new IcloudError("发现 API base 失败");
     }
 
     try {
-      return await makeRequest<T>(
-        withClientParams(base, path),
-        method,
-        { cookie: deps.cookie, domain: deps.domain, payload },
+      const res = await withRetry(() =>
+        makeRequest<T>(withClientParams(base, path), method, {
+          cookie: deps.cookie,
+          domain: deps.domain,
+          payload,
+        }),
       );
+      deps.onAuthSuccess?.();
+      return res;
     } catch (e) {
-      // 凭证失效类错误：清缓存并重试一次（base 可能已变更）
-      if (e instanceof IcloudError && (e.status === 421 || e.status === 401 || e.status === 403)) {
+      // 凭证失效类错误：清缓存并重新发现 base 后重试一次（base 可能已变更）
+      if (e instanceof IcloudError && isAuthFailure(e.status)) {
         deps.clearCachedApiBase();
-        base = await discoverApiBase(deps.cookie, deps.domain);
-        deps.setCachedApiBase(base);
-        return await makeRequest<T>(
-          withClientParams(base, path),
-          method,
-          { cookie: deps.cookie, domain: deps.domain, payload },
-        );
+        try {
+          base = await discoverApiBase(deps.cookie, deps.domain);
+          deps.setCachedApiBase(base);
+          const res = await withRetry(() =>
+            makeRequest<T>(withClientParams(base, path), method, {
+              cookie: deps.cookie,
+              domain: deps.domain,
+              payload,
+            }),
+          );
+          deps.onAuthSuccess?.();
+          return res;
+        } catch (e2) {
+          // 重试后仍失败：确认凭证失效，回写状态
+          if (e2 instanceof IcloudError && isAuthFailure(e2.status)) {
+            deps.onAuthInvalid?.(e2.message);
+          }
+          throw e2;
+        }
       }
       throw e;
     }

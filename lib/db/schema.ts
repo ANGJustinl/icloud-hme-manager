@@ -2,6 +2,9 @@ import "server-only";
 
 import type { IcloudDomain } from "@/lib/icloud/constants";
 
+/** Cookie 凭证健康状态。ok=最近一次调用成功；invalid=最近一次因鉴权失败被标记；unknown=尚未校验过 */
+export type CookieStatus = "ok" | "invalid" | "unknown";
+
 /**
  * accounts 表结构（DB 层，敏感字段为密文）。
  *
@@ -26,6 +29,12 @@ export interface AccountRow {
   imap_app_password_encrypted: string | null;
   /** IMAP 登录主邮箱地址（明文存储，非敏感） */
   imap_username: string | null;
+  /** Cookie 凭证健康状态，由代理调用结果回写 */
+  cookie_status: CookieStatus;
+  /** 最近一次成功校验时间（毫秒），null=从未成功 */
+  last_validated_at: number | null;
+  /** 最近一次失效原因（人类可读），null=无错误 */
+  last_error: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -40,6 +49,12 @@ export interface AccountPublic {
   hasImapPassword: boolean;
   /** IMAP 登录主邮箱地址（明文，用于前端显示） */
   imapUsername: string | null;
+  /** Cookie 凭证健康状态 */
+  cookieStatus: CookieStatus;
+  /** 最近一次成功校验时间（毫秒） */
+  lastValidatedAt: number | null;
+  /** 最近一次失效原因（人类可读） */
+  lastError: string | null;
   cachedApiBase: string | null;
   apiBaseCachedAt: number | null;
   createdAt: number;
@@ -84,6 +99,9 @@ export function toPublic(row: AccountRow): AccountPublic {
     hasCookie: Boolean(row.cookie_encrypted),
     hasImapPassword: Boolean(row.imap_app_password_encrypted),
     imapUsername: row.imap_username ?? null,
+    cookieStatus: row.cookie_status ?? "unknown",
+    lastValidatedAt: row.last_validated_at ?? null,
+    lastError: row.last_error ?? null,
     cachedApiBase: row.cached_api_base,
     apiBaseCachedAt: row.api_base_cached_at,
     createdAt: row.created_at,
@@ -118,6 +136,9 @@ CREATE TABLE IF NOT EXISTS accounts (
   api_base_cached_at INTEGER,
   imap_app_password_encrypted TEXT,
   imap_username TEXT,
+  cookie_status TEXT NOT NULL DEFAULT 'unknown',
+  last_validated_at INTEGER,
+  last_error TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );

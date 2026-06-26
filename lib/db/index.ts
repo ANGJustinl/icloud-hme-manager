@@ -60,6 +60,15 @@ function migrateIfNeeded(db: Database.Database) {
   if (!has("imap_username")) {
     db.exec(`ALTER TABLE accounts ADD COLUMN imap_username TEXT;`);
   }
+  if (!has("cookie_status")) {
+    db.exec(`ALTER TABLE accounts ADD COLUMN cookie_status TEXT NOT NULL DEFAULT 'unknown';`);
+  }
+  if (!has("last_validated_at")) {
+    db.exec(`ALTER TABLE accounts ADD COLUMN last_validated_at INTEGER;`);
+  }
+  if (!has("last_error")) {
+    db.exec(`ALTER TABLE accounts ADD COLUMN last_error TEXT;`);
+  }
 
   const relayCols = db.prepare(`PRAGMA table_info(relay_sources)`).all() as { name: string }[];
   const relayHas = (col: string) => relayCols.some((c) => c.name === col);

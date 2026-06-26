@@ -9,6 +9,7 @@ import {
   getAccountCookie,
   getAccountImapPassword,
   getAccountRow,
+  markCookieStatus,
   setCachedApiBase,
 } from "@/lib/db/accounts";
 import { createHmeClient } from "@/lib/icloud/client";
@@ -76,6 +77,8 @@ export async function buildClientForAccount(accountId: number) {
     getCachedApiBase: () => row.cached_api_base,
     setCachedApiBase: (url) => setCachedApiBase(accountId, url),
     clearCachedApiBase: () => clearCachedApiBase(accountId),
+    onAuthSuccess: () => markCookieStatus(accountId, "ok"),
+    onAuthInvalid: (message) => markCookieStatus(accountId, "invalid", message),
   });
 
   return client;

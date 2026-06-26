@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Mail, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, Mail, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { apiFetch, type AccountPublic } from "@/lib/client/types";
@@ -12,6 +12,28 @@ interface AccountManagerProps {
   currentId: number | null;
   onSelect: (id: number) => void;
   onChanged: () => void;
+}
+
+/** Cookie 状态小圆点：绿=正常 / 红=失效 / 灰=待校验 */
+function CookieDot({ status }: { status: AccountPublic["cookieStatus"] }) {
+  const color =
+    status === "ok"
+      ? "bg-emerald-500"
+      : status === "invalid"
+        ? "bg-hme-danger"
+        : "bg-hme-border";
+  const title =
+    status === "ok"
+      ? "Cookie 正常"
+      : status === "invalid"
+        ? "Cookie 已失效，请更新"
+        : "Cookie 状态未知（尚未校验）";
+  return (
+    <span
+      title={title}
+      className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`}
+    />
+  );
 }
 
 export function AccountManager({
@@ -101,6 +123,7 @@ export function AccountManager({
           className="flex items-center gap-2 rounded-lg border border-hme-border bg-hme-card px-3 py-2 text-sm font-medium hover:bg-black/[0.03]"
         >
           <span className="text-hme-muted">账号:</span>
+          {current && <CookieDot status={current.cookieStatus} />}
           <span>{current?.name ?? "未选择"}</span>
           <ChevronDown size={14} className="text-hme-muted" />
         </button>
@@ -120,6 +143,7 @@ export function AccountManager({
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
+                    <CookieDot status={a.cookieStatus} />
                     {a.name}
                     {a.hasImapPassword && (
                       <Mail size={12} className="text-hme-primary" />
@@ -433,9 +457,30 @@ function ManageModal({
       }
     >
       <div className="space-y-5">
+        {/* Cookie 失效告警 */}
+        {account.cookieStatus === "invalid" && (
+          <div className="flex items-start gap-2 rounded-lg border border-hme-danger/30 bg-hme-danger-bg px-3 py-2.5 text-xs text-hme-danger">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <div>
+              <div className="font-medium">Cookie 已失效，请在下方重新粘贴更新。</div>
+              {account.lastError && (
+                <div className="mt-0.5 text-hme-danger/80">原因：{account.lastError}</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 基本信息 */}
         <div className="rounded-lg bg-hme-bg px-3 py-2 text-xs text-hme-muted">
           <div>区域：{account.domain}</div>
+          <div className="mt-1">
+            Cookie 状态：
+            {account.cookieStatus === "ok"
+              ? `正常${account.lastValidatedAt ? `（校验于 ${new Date(account.lastValidatedAt).toLocaleString()}）` : ""}`
+              : account.cookieStatus === "invalid"
+                ? "已失效"
+                : "未知（尚未校验）"}
+          </div>
           <div className="mt-1">
             API base 缓存：
             {account.cachedApiBase ? (

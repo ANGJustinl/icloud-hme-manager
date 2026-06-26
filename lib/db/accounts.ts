@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "./index";
-import type { AccountPublic, AccountRow } from "./schema";
+import type { AccountPublic, AccountRow, CookieStatus } from "./schema";
 import { toPublic } from "./schema";
 import { decrypt, encrypt } from "@/lib/crypto";
 import type { IcloudDomain } from "@/lib/icloud/constants";
@@ -68,10 +68,10 @@ export function getAccountCookie(id: number): string | null {
 /** 更新账号 Cookie（重新粘贴时） */
 export function updateAccountCookie(id: number, cookie: string): boolean {
   const now = Date.now();
-  // Cookie 变了，缓存的 api base 也作废
+  // Cookie 变了，缓存的 api base 也作废，凭证状态重置为待校验
   const r = db
     .prepare(
-      `UPDATE accounts SET cookie_encrypted = ?, cached_api_base = NULL, api_base_cached_at = NULL, updated_at = ? WHERE id = ?`,
+      `UPDATE accounts SET cookie_encrypted = ?, cached_api_base = NULL, api_base_cached_at = NULL, cookie_status = 'unknown', last_error = NULL, updated_at = ? WHERE id = ?`,
     )
     .run(encrypt(cookie), now, id);
   return r.changes > 0;
@@ -99,6 +99,32 @@ export function clearCachedApiBase(id: number): void {
   db.prepare(
     `UPDATE accounts SET cached_api_base = NULL, api_base_cached_at = NULL WHERE id = ?`,
   ).run(id);
+}
+
+/**
+ * 回写 Cookie 凭证健康状态。代理调用成功/失败后调用，让前端可提前看到失效。
+ * @param status ok=调用成功；invalid=鉴权失败；unknown=待校验
+ * @param error  失效原因（status=invalid 时记录，否则清空）
+ */
+export function markCookieStatus(
+  id: number,
+  status: CookieStatus,
+  error?: string,
+): void {
+  const now = Date.now();
+  if (status === "ok") {
+    db.prepare(
+      `UPDATE accounts SET cookie_status = 'ok', last_validated_at = ?, last_error = NULL, updated_at = ? WHERE id = ?`,
+    ).run(now, now, id);
+  } else if (status === "invalid") {
+    db.prepare(
+      `UPDATE accounts SET cookie_status = 'invalid', last_error = ?, updated_at = ? WHERE id = ?`,
+    ).run(error ?? "凭证已失效", now, id);
+  } else {
+    db.prepare(
+      `UPDATE accounts SET cookie_status = 'unknown', updated_at = ? WHERE id = ?`,
+    ).run(now, id);
+  }
 }
 
 /**
