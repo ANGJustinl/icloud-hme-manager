@@ -15,6 +15,9 @@ import {
 import { createHmeClient } from "@/lib/icloud/client";
 import type { IcloudDomain } from "@/lib/icloud/constants";
 import { ICLOUD_DOMAINS } from "@/lib/icloud/constants";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("api");
 
 /** 统一的 JSON 响应 */
 export function json<T>(data: T, status = 200): NextResponse<T> {
@@ -29,15 +32,22 @@ export function handleError(e: unknown): NextResponse {
       e.status === 401 || e.status === 403 || e.status === 421
         ? 401
         : 502;
+    if (status === 401) {
+      log.warn("iCloud 凭证失效", { status: e.status, message: e.message });
+    } else {
+      log.error("iCloud API 错误", { status: e.status, message: e.message });
+    }
     return json({ error: e.message }, status);
   }
   if (e instanceof MailError) {
     // IMAP 认证/未配置类错误映射为 4xx，其余为 502
     const clientErrors = ["AUTH", "CONN", "NO_IMAP", "NOTFOUND"];
     const status = e.code && clientErrors.includes(e.code) ? 400 : 502;
+    log.warn("IMAP 错误", { code: e.code, message: e.message });
     return json({ error: e.message, code: e.code }, status);
   }
   const msg = e instanceof Error ? e.message : String(e);
+  log.error("未处理异常", { message: msg });
   return json({ error: msg }, 500);
 }
 

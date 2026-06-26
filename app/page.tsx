@@ -12,6 +12,7 @@ import {
   Mail,
   Plus,
   RefreshCw,
+  ScrollText,
   Search,
   Trash2,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { EditLabelModal } from "@/components/EditLabelModal";
 import { InboxPanel } from "@/components/InboxPanel";
 import { OtpExtractor } from "@/components/OtpExtractor";
 import { ApiRelayPanel } from "@/components/ApiRelayPanel";
+import { LogsPanel } from "@/components/LogsPanel";
 import { useToast, useCopyToClipboard } from "@/components/ui/Toast";
 import {
   apiFetch,
@@ -45,6 +47,7 @@ export default function HomePage() {
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("aliases");
+  const [logsOpen, setLogsOpen] = useState(false);
 
   // 初始加载：拉账号列表 + 探测登录态
   const refreshAccounts = useCallback(async () => {
@@ -106,12 +109,21 @@ export default function HomePage() {
           </span>
           <h1 className="text-sm font-semibold text-hme-text">隐藏我的邮件</h1>
         </div>
-        <AccountManager
-          accounts={accounts}
-          currentId={currentId}
-          onSelect={setCurrentId}
-          onChanged={refreshAccounts}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLogsOpen(true)}
+            title="查看应用日志"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-hme-border bg-hme-card text-hme-muted hover:bg-black/[0.03] hover:text-hme-text"
+          >
+            <ScrollText size={15} />
+          </button>
+          <AccountManager
+            accounts={accounts}
+            currentId={currentId}
+            onSelect={setCurrentId}
+            onChanged={refreshAccounts}
+          />
+        </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-6">
@@ -169,6 +181,8 @@ export default function HomePage() {
           </>
         ) : null}
       </main>
+
+      <LogsPanel open={logsOpen} onClose={() => setLogsOpen(false)} />
     </div>
   );
 }

@@ -5,6 +5,9 @@ import type { AccountPublic, AccountRow, CookieStatus } from "./schema";
 import { toPublic } from "./schema";
 import { decrypt, encrypt } from "@/lib/crypto";
 import type { IcloudDomain } from "@/lib/icloud/constants";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("accounts");
 
 /** 创建账号（IMAP 配置可选） */
 export function createAccount(input: {

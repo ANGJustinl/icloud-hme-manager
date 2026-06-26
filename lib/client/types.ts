@@ -149,6 +149,15 @@ export interface RelayShareResponse {
   };
 }
 
+export interface LogPublic {
+  id: number;
+  ts: number;
+  level: string;
+  scope: string;
+  message: string;
+  fields: Record<string, unknown> | null;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

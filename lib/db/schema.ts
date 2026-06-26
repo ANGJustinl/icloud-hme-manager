@@ -129,6 +129,45 @@ export function aliasUsageToPublic(row: AliasUsageRow): AliasUsagePublic {
   };
 }
 
+/** 应用日志（DB 层）。值已在写入前脱敏。 */
+export interface LogRow {
+  id: number;
+  ts: number;
+  level: string;
+  scope: string;
+  message: string;
+  /** 脱敏后的附加字段 JSON 字符串，可空 */
+  fields: string | null;
+}
+
+export interface LogPublic {
+  id: number;
+  ts: number;
+  level: string;
+  scope: string;
+  message: string;
+  fields: Record<string, unknown> | null;
+}
+
+export function logToPublic(row: LogRow): LogPublic {
+  let fields: Record<string, unknown> | null = null;
+  if (row.fields) {
+    try {
+      fields = JSON.parse(row.fields) as Record<string, unknown>;
+    } catch {
+      fields = null;
+    }
+  }
+  return {
+    id: row.id,
+    ts: row.ts,
+    level: row.level,
+    scope: row.scope,
+    message: row.message,
+    fields,
+  };
+}
+
 export function toPublic(row: AccountRow): AccountPublic {
   return {
     id: row.id,
@@ -208,4 +247,14 @@ CREATE TABLE IF NOT EXISTS alias_usage (
   PRIMARY KEY (account_id, anonymous_id)
 );
 CREATE INDEX IF NOT EXISTS idx_alias_usage_account ON alias_usage(account_id);
+
+CREATE TABLE IF NOT EXISTS logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  level TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  message TEXT NOT NULL,
+  fields TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts);
 `;

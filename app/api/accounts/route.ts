@@ -4,6 +4,9 @@ import { createAccount, listAccounts } from "@/lib/db/accounts";
 import { handleError, isIcloudDomain, json, parseBody } from "@/lib/http";
 import { requireSession } from "@/lib/session";
 import { CookieParseError, parseCookieInput } from "@/lib/icloud/cookie";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("accounts");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,8 +45,11 @@ export async function POST(request: NextRequest) {
 
     // 归一化多格式 Cookie（Netscape / JSON / Header String）
     let cookie: string;
+    let cookieFormat: string;
     try {
-      cookie = parseCookieInput(rawCookie).cookie;
+      const parsed = parseCookieInput(rawCookie);
+      cookie = parsed.cookie;
+      cookieFormat = parsed.format;
     } catch (e) {
       if (e instanceof CookieParseError) return json({ error: e.message }, 400);
       throw e;
@@ -62,6 +68,13 @@ export async function POST(request: NextRequest) {
       cookie,
       imapUsername: hasUser ? body.imapUsername!.trim() : undefined,
       imapAppPassword: hasPass ? body.imapAppPassword!.trim() : undefined,
+    });
+    log.info("账号已创建", {
+      accountId: account.id,
+      name: account.name,
+      domain: account.domain,
+      cookieFormat,
+      hasImap: hasUser,
     });
     return json({ account }, 201);
   } catch (e) {

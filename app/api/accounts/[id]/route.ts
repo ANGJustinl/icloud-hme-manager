@@ -11,6 +11,9 @@ import { handleError, json, parseBody } from "@/lib/http";
 import { requireSession } from "@/lib/session";
 import { deleteAllUsageForAccount } from "@/lib/db/aliasUsage";
 import { CookieParseError, parseCookieInput } from "@/lib/icloud/cookie";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("accounts");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,13 +51,17 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       const rawCookie = body.cookie.trim();
       if (!rawCookie) return json({ error: "Cookie 不能为空" }, 400);
       let cookie: string;
+      let cookieFormat: string;
       try {
-        cookie = parseCookieInput(rawCookie).cookie;
+        const parsed = parseCookieInput(rawCookie);
+        cookie = parsed.cookie;
+        cookieFormat = parsed.format;
       } catch (e) {
         if (e instanceof CookieParseError) return json({ error: e.message }, 400);
         throw e;
       }
       updateAccountCookie(id, cookie);
+      log.info("账号 Cookie 已更新", { accountId: id, cookieFormat });
     }
     // IMAP 配置：imapUsername 字段存在即触发更新（null = 清除）
     if (body.imapUsername !== undefined) {
@@ -88,6 +95,7 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
     if (!ok) return json({ error: "账号不存在" }, 404);
     // 级联清理本地别名用法记录
     deleteAllUsageForAccount(id);
+    log.info("账号已删除", { accountId: id });
     return json({ ok: true });
   } catch (e) {
     return handleError(e);
