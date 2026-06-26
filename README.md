@@ -76,7 +76,11 @@ docker compose up -d --build
 
 ## 📋 获取 iCloud Cookie（核心步骤）
 
-本应用靠你提供 iCloud 的登录 Cookie 工作。Cookie 会过期（通常几天到几周），过期后重新执行本步骤更新即可。
+本应用靠你提供 iCloud 的登录 Cookie 工作。Cookie 会过期（通常几天到几周），过期后重新执行本步骤更新即可。Cookie 失效时顶栏账号旁的圆点会变红，账号设置里也会显示告警。
+
+**支持三种格式，粘贴后自动识别并归一化**，任选其一：
+
+### 方式 A：Header String（最直接）
 
 1. 在浏览器（Chrome / Edge / Safari）登录 [icloud.com](https://www.icloud.com)
 2. 按 `F12` 打开开发者工具，切到 **Network（网络）** 标签
@@ -85,7 +89,14 @@ docker compose up -d --build
 5. 复制 `cookie:` 后面的**整行字符串**（很长，包含 `X-APPLE-...` 等多个字段）
 6. 粘贴到本应用「添加账号」的 Cookie 输入框
 
-> 也可以用浏览器扩展（如 EditThisCookie）一次性导出 `icloud.com` 域的所有 cookie 拼成 `key=value; key=value` 格式。
+### 方式 B：JSON（浏览器扩展导出）
+
+用 **EditThisCookie** / **Cookie-Editor** 等扩展导出 `icloud.com` 域的 Cookie，得到形如
+`[{"name":"X-APPLE-WEBAUTH-USER","value":"..."}, ...]` 的 JSON 数组，整段粘贴即可。
+
+### 方式 C：Netscape cookies.txt
+
+`curl`/`wget` 或部分扩展导出的 `cookies.txt`（制表符分隔，含 `#HttpOnly_` 行也支持），整个文件内容粘贴即可。
 
 ## 📨 配置 IMAP（收件箱 & 验证码提取）
 
@@ -156,8 +167,17 @@ docker compose up -d --build
 | `ENCRYPTION_KEY` | 是* | 32 字节 hex（64 字符），加密账号 Cookie。本地留空自动生成；**Docker 必须显式固定**，否则容器重启后已存账号失效。 |
 | `SESSION_SECRET` | 是* | 任意随机字符串，签名会话。同上 Docker 必须固定。 |
 | `DATA_DIR` | 否 | SQLite 存放目录，默认 `./data`。 |
+| `LOG_LEVEL` | 否 | 日志级别 `debug`/`info`/`warn`/`error`，默认 `info`。敏感值写入前已脱敏。 |
 
 \* 本地开发留空会自动生成写入 `.env.local`；生产/Docker 必须显式提供。
+
+## 📊 日志与运维
+
+- **应用内日志面板**：顶栏「📜」按钮打开，查看服务端落库的关键事件（账号增删改、凭证失效、API/IMAP 错误），支持按级别过滤、刷新、清空。日志为环形缓冲，最多保留最近 2000 条。
+- **容器日志**：同样输出到 stdout/stderr，`docker logs -f icloud-hme-manager` 查看；`docker-compose.yml` 已配置 json-file 轮转（单文件 10MB、最多 3 个）。
+- **脱敏**：所有 Cookie / 密码 / token / 会话密钥在写入日志前一律打码，邮箱本地部分遮蔽，不会泄漏明文凭证。
+- **健康检查**：`GET /api/health`（无需登录）探测 SQLite 连通性；Dockerfile 与 compose 均已配置 `HEALTHCHECK`，反向代理可据此探活。
+- **日志级别**：用 `LOG_LEVEL` 调整，排查问题设 `debug`，生产建议 `info`/`warn`。
 
 ## 🗂️ 项目结构
 

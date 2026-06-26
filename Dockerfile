@@ -46,5 +46,9 @@ USER nextjs
 
 EXPOSE 3000
 
+# 健康检查：探 /api/health（探 SQLite 连通性）。用 node 自带 http，免装 curl/wget。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
 # standalone server 入口（由 next.config 的 output: standalone 生成）
 CMD ["node", "server.js"]

@@ -18,6 +18,26 @@ services:
       # ---- 会话签名密钥（务必显式设置并固定）----
       # 生成：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
       SESSION_SECRET: ${SESSION_SECRET}
+
+      # ---- 日志级别（debug / info / warn / error，默认 info）----
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       # SQLite 数据库持久化（账号 Cookie 等加密存储于此）
       - ./data:/app/data
+    # 容器日志轮转：单文件最大 10MB，最多保留 3 个，避免日志撑爆磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 健康检查（与 Dockerfile HEALTHCHECK 一致，compose 层显式声明便于编排）
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
